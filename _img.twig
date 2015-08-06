@@ -1,0 +1,122 @@
+{# macros for responsive images. #}
+
+{% macro _classAttr(classes) %}
+  {%- if (classes|length) -%}
+    class="{{ classes|join(' ') }}"
+  {%- endif -%}
+{% endmacro %}
+
+{% macro fixedSize(asset, width, options={}) %}
+{% import _self as self %}
+  {% set options = {
+    alt: asset.altText,
+    class: []
+  }| merge(options) %}
+
+  {% set transform = {
+    mode: 'stretch'
+  } %}
+
+  {% set nativeWidth = asset.getWidth(false) %}
+
+  <img
+    {# src attr: transformed only if necessary #}
+    {% if nativeWidth <= width %}
+      src="{{ asset.getUrl(false) }}"
+    {% else %}
+      src="{{ asset.getUrl(transform|merge({width: width})) }}"
+    {% endif %}
+
+    {# srcset attr, but only if 2x <= nativeWidth #}
+    {% if width*2 == nativeWidth %}
+      srcset="{{ asset.getUrl(false) }} 2x"
+    {% elseif width*2 < nativeWidth %}
+      srcset="{{ asset.getUrl(transform|merge({width: width*2})) }} 2x"
+    {% endif %}
+
+    alt="{{options.alt}}"
+    {{ self._classAttr(options.class) }}
+  />
+{% endmacro %}
+
+{% macro responsive(asset, options={}) %}
+{% import _self as self %}
+  {% set options = {
+    alt: asset.altText,
+    class: [],
+    style: 'default'
+  }| merge(options) %}
+
+  {% set transform = {
+    mode: 'stretch'
+  } %}
+
+  {% set nativeWidth = asset.getWidth(false) %}
+
+  {#
+   # Here is where you configure the image styles.
+   # You are going to have to modify this for your
+   # individual site.
+   #
+   # config is a hash, where the key is the style,
+   # and the value is another hash
+   # of srcsetWidths, sizes, and defaultWidth.
+   #
+   # There should always be a 'default' style.
+   # Redefine the 'default' to whatever makes sense
+   # for you, and add other styles as needed.
+   #
+   # srcsetWidths: image widths that should appear
+   #   in the srcset.
+   # sizes: media queries that specify the widths
+   #   of the image at different screen widths.
+   #   The first one that matches is used.
+   # defaultWidth: image width for the src image
+   #   (fallback for browsers that don't understand
+   #   srcset)
+   #}
+  {% set config = {
+    default: {
+      srcsetWidths: [400, 800, 1000],
+      sizes: [
+        '(max-width: 30rem) 100vw',
+        '25em'
+      ],
+      defaultWidth: 800
+    },
+    thumb: {
+      srcsetWidths: [200, 400],
+      sizes: [
+        '200px'
+      ],
+      defaultWidth: 200
+    }
+  } %}
+
+  {% set params = config[options.style] %}
+
+  {% set srcset = [asset.getUrl(false)~' '~nativeWidth~'w'] %}
+
+  {% for width in params['srcsetWidths'] %}
+    {% if width < nativeWidth %}
+      {% set srcset
+         = srcset|merge([asset.getUrl(transform|merge({width: width}))~' '~width~'w'])
+      %}
+    {% endif %}
+  {% endfor %}
+
+  <img
+    {# src attr: transformed only if necessary #}
+    {% if nativeWidth <= params['defaultWidth'] %}
+      src="{{ asset.getUrl(false) }}"
+    {% else %}
+      src="{{ asset.getUrl(transform|merge({width: params['defaultWidth']})) }}"
+    {% endif %}
+
+    srcset="{{ srcset|join(', ') }}"
+    sizes="{{ params['sizes']|join(', ') }}"
+
+    alt="{{options.alt}}"
+    {{ self._classAttr(options.class) }}
+  />
+{% endmacro %}
